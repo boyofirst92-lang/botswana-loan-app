@@ -1,0 +1,7 @@
+{
+  "buildCommand": "echo 'Static site ready for deployment'",
+  "devCommand": "http-server -p 8080",
+  "outputDirectory": ".",
+  "framework": "static",
+  "nodeVersion": "18.x"
+}
