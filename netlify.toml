@@ -1,0 +1,11 @@
+# Netlify Configuration
+# Deploy the static site directly
+
+[build]
+  command = "echo 'Static site - no build required'"
+  publish = "."
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
